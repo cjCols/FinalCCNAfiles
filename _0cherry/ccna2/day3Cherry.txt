@@ -1,0 +1,401 @@
+task 5: static routing for endPoints/pc/sohoR
+
+@p1
+config t
+int e0/0
+ip add 10.2.1.101 255.255.255.0
+no shut
+end
+
+@p2
+config t
+int e1/0
+ip add 10.2.1.102 255.255.255.0
+no shut
+end
+
+@p1
+config t
+ip route 10.2.2.0 255.255.255.0 10.2.1.1 1
+ip route 10.2.2.0 255.255.255.0 10.2.1.2 10
+ip route 192.168.1.128 255.255.255.224 10.2.1.1 1
+ip route 192.168.1.128 255.255.255.224 10.2.1.2 10
+
+!Kill the 1st
+no ip route 192.168.1.128 255.255.255.224 10.2.1.1 1
+
+
+task 5.1: default route para sa cisco endpoint
+@p2:floating static route
+config t
+ip route 0.0.0.0 0.0.0.0 10.2.1.2 1
+ip route 0.0.0.0 0.0.0.0 10.2.1.1 10
+ip route 192.168.1.128 255.255.255.224 10.2.1.2
+ip route 192.168.1.129 255.255.255.255 10.2.1.1
+
+@p1:floating static route
+config t
+ip route 0.0.0.0 0.0.0.0 10.2.1.1 1
+ip route 0.0.0.0 0.0.0.0 10.2.1.2 10
+
+
+
+
+D1:
+config t
+router eigrp 100
+ no auto-summary
+ network 10.1.4.4 0.0.0.3
+ network 10.2.1.0 0.0.0.255
+ network 10.2.2.0 0.0.0.255
+ network 192.168.1.128 0.0.0.31
+end
+
+or NEXUS-like
+
+conf t
+	router eigrp CCNPLEVEL
+		address-family ipv4 unicast autonomous-system 100
+		network 10.1.4.6 0.0.0.0
+		network 10.2.1.1 0.0.0.0
+		network 10.2.2.1 0.0.0.0
+		network 192.168.1.129 0.0.0.0
+		end
+
+
+D2:
+config t
+router eigrp 100
+ no auto-summary
+ network 10.1.4.8 0.0.0.3
+ network 10.2.1.0 0.0.0.255
+ network 10.2.2.0 0.0.0.255
+ network 192.168.1.128 0.0.0.31
+end
+show ip eigrp neighbor
+
+or NEXUS-like
+
+conf t
+	router eigrp CCNPLEVEL
+		address-family ipv4 unicast autonomous-system 100
+		network 10.1.4.10 0.0.0.0
+		network 10.2.1.2 0.0.0.0
+		network 10.2.2.2 0.0.0.0
+		network 192.168.1.130 0.0.0.0
+		end
+	sh ip eigrp nei
+
+R4:
+config t
+router eigrp 100
+ no auto-summary
+ network 10.1.4.8 0.0.0.3
+ network 10.1.4.4 0.0.0.3
+ end
+ 
+ 
+ 4 way test
+ 1. show ip protocols
+ 2. show ip eigrp neighbor
+ 3. show ip eigrp topology
+ 4. show ip route eigrp
+ 
+ 
+ @R1
+ config t
+ ip route 10.1.1.8 255.255.255.252 10.1.1.2
+ ip route 10.1.1.4 255.255.255.252 10.1.1.2
+ 
+ @R2
+ config t
+ ip route 10.1.1.8 255.255.255.252 10.1.1.6
+ 
+ @R3
+ config t
+ ip route 10.1.1.0 255.255.255.252 10.1.1.5
+ 
+ @R4
+ config t
+ ip route 10.1.1.4 255.255.255.252 10.1.1.9
+ ip route 10.1.1.0 255.255.255.252 10.1.1.9
+ 
+ 
+ 
+ 
+ 
+!!Multi Area OSPF FOR nETWOR eNGINEERS:
+OSPF NETWORK:
+R4:
+config t
+Int loopback 0
+ ip add 4.4.4.4 255.255.255.255
+router ospf 1
+router-id 4.4.4.4
+network 4.4.4.4 0.0.0.0 area 34
+network 10.1.1.8 0.0.0.3 area 34
+
+R3:
+config t
+Int loopback 0
+ ip add 3.3.3.3 255.255.255.255
+router ospf 1
+router-id 3.3.3.3
+network 3.3.3.3 0.0.0.0 area 0
+router ospf 1
+network 10.1.1.4 0.0.0.3 area 0
+network 10.1.1.8 0.0.0.3 area 34
+
+R2:
+config t
+Int loopback 0
+ ip add 2.2.2.2 255.255.255.255
+router ospf 1
+router-id 2.2.2.2
+network 2.2.2.2 0.0.0.0 area 0
+router ospf 1
+network 10.1.1.4 0.0.0.3 area 0
+network 10.1.1.0 0.0.0.3 area 12
+
+R1:
+config t
+Int loopback 0
+ ip add 1.1.1.1 255.255.255.255
+router ospf 1
+router-id 1.1.1.1
+network 1.1.1.1 0.0.0.0 area 12
+router ospf 1
+network 10.1.1.0 0.0.0.3 area 12
+
+OSPF checking:
+sh ip protocols
+sh ip ospf neighbor
+sh ip ospf database
+sh ip route ospf
+
+7 ospf states: 
+Down
+Init
+Twoway
+Exstart
+Exchange
+Loading
+Full
+
+
+
+!route redistribution: joining/combining different routing protocols halo si eigrp at ospf
+R4: sikat: Eigrp and OSPF world:
+config T
+router eigrp 100
+redistribute ospf 1 metric 10000 100 255 1 1500
+ exit
+router ospf 1
+redistribute eigrp 100 subnets
+end
+
+
+BGP Fundamentals
+Notif
+Open
+Keep alive
+Update
+
+
+
+!BGP realworld boarder gateway protocol
+why use BGP @ your office
+1. you own /24 publicIPaddress: 254 host
+2. 3 or more gigabit internet: 1.5M/month
+3. you have AS number
+4. NetworkEng = 150to300k/month
+5. HighEnd CiscoRouter: ASR10004x  DoB: 1983 below
+
+
+@R1
+router bgp 1
+neighbor 207.7.7.2 remote-as 2
+neighbor 208.8.8.4 remote-as 45
+neighbor 209.9.9.3 remote-as 3
+network 207.7.7.0 mask 255.255.255.0
+network 208.8.8.0 mask 255.255.255.0
+network 209.9.9.0 mask 255.255.255.0
+network 10.0.0.0 mask 255.255.255.0
+
+
+R1 BGP:
+config t
+router bgp 1
+ bgp log-neighbor-changes
+ neighbor 208.8.8.4 remote-as 45
+ neighbor 207.7.7.2 remote-as 2
+ neighbor 209.9.9.3 remote-as 3
+ network 10.0.0.0 Mask 255.255.255.252
+ network 207.7.7.0
+ network 208.8.8.0
+ network 209.9.9.0
+end
+@@@ISP1:
+CONFIG T
+router bgp 45
+bgp log-neighbor-changes
+neighbor 24.2.4.2 remote-as 2
+neighbor 45.4.5.5 remote-as 45
+neighbor 208.8.8.1 remote-as 1
+network 208.8.8.0
+network 24.2.4.0 mask 255.255.255.0
+network 44.44.44.44 mask 255.255.255.255
+network 45.4.5.0 mask 255.255.255.0
+!PretentInternet
+network 0.0.0.0
+ip route 0.0.0.0 0.0.0.0 null 0
+ip route 10.0.0.0 255.0.0.0 208.8.8.1
+end
+
+@@@ISP2:
+config t
+router bgp 2
+bgp log-neighbor-changes
+neighbor 24.2.4.4 remote-as 45
+neighbor 25.2.5.5 remote-as 45
+neighbor 32.3.2.3 remote-as 3
+neighbor 207.7.7.1 remote-as 1
+network 207.0.0.0
+network 22.22.22.22 mask 255.255.255.255
+network 24.2.4.0 mask 255.255.255.0
+network 25.2.5.0 mask 255.255.255.0
+network 32.3.2.0 mask 255.255.255.0
+!fakeInternet
+network 0.0.0.0
+ip route 0.0.0.0 0.0.0.0 null 0
+ip route 10.0.0.0 255.0.0.0 207.7.7.1
+end
+@@ISP3:
+CONFIG T
+router bgp 3
+bgp log-neighbor-changes
+neighbor 32.3.2.2 remote-as 2
+neighbor 35.3.5.5 remote-as 45
+neighbor 209.9.9.1 remote-as 1
+network 209.9.9.0
+network 32.3.2.0 mask 255.255.255.0
+network 33.33.33.33 mask 255.255.255.255
+network 35.3.5.0 mask 255.255.255.0
+network 0.0.0.0
+ip route 0.0.0.0 0.0.0.0 null 0
+ip route 10.0.0.0 255.0.0.0 209.9.9.1
+end
+
+Isp4:
+config t
+int lo 8
+ ip add 8.8.8.8 255.255.255.255
+router bgp 45
+ bgp log-neighbor-changes
+ neighbor 25.2.5.2 remote-as 2
+ neighbor 35.3.5.3 remote-as 3
+ neighbor 45.4.5.4 remote-as 45
+ network 8.8.8.8 mask 255.255.255.255
+ network 55.55.55.55 mask 255.255.255.255
+ network 25.2.5.0 mask 255.255.255.0
+ network 35.3.5.0 mask 255.255.255.0
+ network 45.4.5.0 mask 255.255.255.0
+end
+
+
+
+
+
+tunay na buhay
+
+
+!alleigrp
+@CM:
+config t
+router eigrp 100
+no auto-summary
+network 10.0.0.0
+
+@Corebaba:
+config t
+router eigrp 100
+no auto-summary
+network 10.0.0.0
+
+@edge
+config t
+router eigrp 100
+no auto-summary
+network 10.0.0.0
+network 200.0.0.0
+
+
+!allOSPF:
+
+@cm:
+config t
+no router eigrp 100
+router ospf 1
+network 10.11.100.0 0.0.0.255 area 0
+
+@corebaba:
+config t
+no router eigrp 100
+router ospf 1
+network 10.11.100.0 0.0.255.255 area 0
+network 10.11.11.0 0.0.0.255 area 0
+
+@edge:
+config t
+no router eigrp 100
+router ospf 1
+network 200.0.0.0 0.0.0.255 area 0
+network 10.11.11.0 0.0.0.255 area 0
+
+
+!allBGP
+@cm:
+config t
+router bgp 1111
+neighbor 10.11.100.4 remote-as 1111
+network 10.11.100.0 mask 255.255.255.0
+
+@corebaba
+config t
+no router bgp 1
+router bgp 1111
+neighbor 10.11.100.8 remote-as 1111
+neighbor 10.11.11.1 remote-as 11
+network 10.11.100.0 mask 255.255.255.0
+network 10.11.11.0 mask 255.255.255.0
+
+@edge
+config t
+router bgp 11
+neighbor 10.11.11.4 remote-as 1111
+!neighbor 200.0.0.11 remote-as 11
+neighbor 200.0.0.12 remote-as 12
+neighbor 200.0.0.21 remote-as 21
+neighbor 200.0.0.22 remote-as 22
+neighbor 200.0.0.31 remote-as 31
+neighbor 200.0.0.32 remote-as 32
+neighbor 200.0.0.41 remote-as 41
+neighbor 200.0.0.42 remote-as 42
+neighbor 200.0.0.51 remote-as 51
+neighbor 200.0.0.52 remote-as 52
+neighbor 200.0.0.61 remote-as 61
+neighbor 200.0.0.62 remote-as 62
+neighbor 200.0.0.71 remote-as 71
+neighbor 200.0.0.72 remote-as 72
+network 200.0.0.0 mask 255.255.255.0
+network 10.11.11.0 mask 255.255.255.0
+
+
+
+realworld S2S VPN
+edge: enable username for VPN
+config t
+username admin privilege 15 secret password
+ip http secure-server
+
+site VPN:
